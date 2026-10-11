@@ -30,68 +30,75 @@
         <span class="nova-label">Nova AI</span>
       </button>
 
-      <!-- Dark / Light Theme Toggle -->
-      <button type="button" class="icon-button" (click)="toggleTheme()"
-        [title]="isDarkMode() ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
-        @if (isDarkMode()) {
-        <span>🌙</span>
-        } @else {
-        <span>☀️</span>
-        }
-      </button>
-
       <!-- Notifications -->
-      <div class="notification-container">
-        <button type="button" class="icon-button notification-button" (click)="toggleNotificationMenu()"
+      <div class="notification-container" (click)="$event.stopPropagation()">
+        <button type="button" class="icon-button notification-button" (click)="toggleNotificationMenu($event)"
           title="Notifications">
           🔔
-          <span class="notification-badge">3</span>
+          @if (notificationService.unreadCount() > 0) {
+            <span class="notification-badge">{{ notificationService.unreadCount() }}</span>
+          }
         </button>
 
         @if (isNotificationMenuOpen) {
         <div class="notification-dropdown">
           <div class="notification-header">
-            <h3>Notifications</h3>
-            <button type="button" class="mark-read-button">Mark all read</button>
+            <div class="notification-title-wrap">
+              <h3>Notifications</h3>
+              @if (notificationService.unreadCount() > 0) {
+                <span class="unread-pill">{{ notificationService.unreadCount() }} new</span>
+              }
+            </div>
+            @if (notificationService.unreadCount() > 0) {
+              <button type="button" class="mark-read-button" (click)="markAllNotificationsRead()">
+                Mark all read
+              </button>
+            }
           </div>
 
           <div class="notification-list">
-            <div class="notification-item unread">
-              <div class="notification-dot"></div>
-              <div class="notification-content">
-                <p><strong>FlowBoard Life OS</strong> project updated</p>
-                <span>10 minutes ago</span>
+            @if (notificationService.isLoading()) {
+              <div class="notification-loading">
+                <div class="spinner-small"></div>
+                <span>Loading notifications...</span>
               </div>
-            </div>
-
-            <div class="notification-item unread">
-              <div class="notification-dot"></div>
-              <div class="notification-content">
-                <p><strong>Nova AI Agent</strong> generated morning briefing</p>
-                <span>1 hour ago</span>
+            } @else if (notificationService.notifications().length === 0) {
+              <div class="notification-empty">
+                <span class="empty-icon">🔕</span>
+                <p>No notifications yet</p>
+                <span class="empty-sub">We'll alert you when important actions happen</span>
               </div>
-            </div>
-
-            <div class="notification-item">
-              <div class="notification-dot"></div>
-              <div class="notification-content">
-                <p>Habit streak milestone: 18 days! 🔥</p>
-                <span>Yesterday</span>
-              </div>
-            </div>
+            } @else {
+              @for (notif of notificationService.notifications(); track notif.id) {
+                <div class="notification-item" [class.unread]="!notif.isRead" (click)="markNotificationRead(notif)">
+                  <div class="notification-dot" [class.unread]="!notif.isRead"></div>
+                  <div class="notification-content">
+                    <p><strong>{{ notif.title }}</strong> {{ notif.message }}</p>
+                    <span>{{ formatNotificationTime(notif.createdAt) }}</span>
+                  </div>
+                  @if (!notif.isRead) {
+                    <button type="button" class="single-read-action" (click)="markNotificationRead(notif, $event)" title="Mark as read">
+                      ✓
+                    </button>
+                  }
+                </div>
+              }
+            }
           </div>
         </div>
         }
       </div>
 
+
       <!-- User Profile -->
-      <div class="profile-container">
-        <button type="button" class="user-profile-btn" (click)="toggleProfileMenu()" title="User Profile">
+      <div class="profile-container" (click)="$event.stopPropagation()">
+        <button type="button" class="user-profile-btn" (click)="toggleProfileMenu($event)" title="User Profile">
           <div class="user-avatar">
             {{ userInitial }}
           </div>
           <span class="online-indicator"></span>
         </button>
+
 
         @if (isProfileMenuOpen) {
         <div class="profile-dropdown">
