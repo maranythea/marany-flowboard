@@ -35,6 +35,13 @@
     <!-- Login Form -->
     <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
 
+      @if (errorMessage()) {
+        <div class="auth-error-banner">
+          <span>⚠️</span>
+          <span>{{ errorMessage() }}</span>
+        </div>
+      }
+
       <!-- Email -->
       <div class="form-group">
 
@@ -103,12 +110,21 @@
 
 
       <!-- Submit -->
-      <button type="submit" [disabled]="loginForm.invalid">
-        Sign In
+      <button type="submit" [disabled]="loginForm.invalid || isLoading()">
+        {{ isLoading() ? 'Signing In...' : 'Sign In' }}
       </button>
+
+      <!-- Divider -->
+      <div class="divider">
+        <span>or</span>
+      </div>
+
+      <!-- Google Sign-In -->
+      <div id="google-login-button" class="g_id_signin"></div>
 
     </form>
 
   </div>
 
 </div>
+
