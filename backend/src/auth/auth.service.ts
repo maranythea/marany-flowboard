@@ -14,7 +14,6 @@ import { RegisterDto } from './dto/register.dto';
 
 const bcryptService = bcrypt as unknown as {
   hash: (value: string, saltRounds: number) => Promise<string>;
-
   compare: (value: string, encrypted: string) => Promise<boolean>;
 };
 
@@ -30,27 +29,67 @@ export class AuthService {
   ) {}
 
   // =========================================================
+  // SEED INITIAL NOTIFICATIONS FOR NEW USERS
+  // =========================================================
+  private async seedInitialNotifications(userId: number): Promise<void> {
+    try {
+      await this.prisma.notification.createMany({
+        data: [
+          {
+            userId,
+            title: 'Welcome to FlowBoard Life OS',
+            message: 'Your personal workspace is ready. Track tasks, projects, habits, and goals.',
+            type: 'info',
+            isRead: false,
+          },
+          {
+            userId,
+            title: 'Nova AI Assistant is Online',
+            message: 'Nova AI is calibrated to help organize your schedule and break down complex projects.',
+            type: 'ai',
+            isRead: false,
+          },
+          {
+            userId,
+            title: 'Quick Command Palette (⌘K)',
+            message: 'Press ⌘K or Ctrl+K anytime to quickly search and jump anywhere in your workspace.',
+            type: 'tip',
+            isRead: false,
+          },
+        ],
+      });
+    } catch (error) {
+      console.warn('Could not seed initial notifications:', error);
+    }
+  }
+
+  // =========================================================
   // EMAIL / PASSWORD REGISTER
   // =========================================================
 
   async register(data: RegisterDto) {
+    const email = data.email.trim().toLowerCase();
+    const name = data.name.trim();
+
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email },
     });
 
     if (existingUser) {
-      throw new ConflictException('Email is already registered');
+      throw new ConflictException('Email is already registered. Please sign in.');
     }
 
     const hashedPassword = await bcryptService.hash(data.password, 10);
 
     const user = await this.prisma.user.create({
       data: {
-        name: data.name,
-        email: data.email,
+        name,
+        email,
         password: hashedPassword,
       },
     });
+
+    await this.seedInitialNotifications(user.id);
 
     return this.createLoginResponse(user.id, user.name, user.email);
   }
@@ -60,12 +99,20 @@ export class AuthService {
   // =========================================================
 
   async login(data: LoginDto) {
+    const email = data.email.trim().toLowerCase();
+
     const user = await this.prisma.user.findUnique({
-      where: { email: data.email },
+      where: { email },
     });
 
     if (!user) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (!user.password) {
+      throw new UnauthorizedException(
+        'This account was registered using Google. Please sign in with Google.',
+      );
     }
 
     const passwordMatches = await bcryptService.compare(
@@ -97,23 +144,24 @@ export class AuthService {
         throw new UnauthorizedException('Invalid Google account');
       }
 
-      const googleId = payload.sub;
-      const email = payload.email;
+      const email = payload.email?.trim().toLowerCase();
 
-      if (!googleId || !email) {
+      if (!email) {
         throw new UnauthorizedException(
-          'Google account information is incomplete',
+          'Google account email is missing',
         );
       }
 
-      // Check whether an Apex account already exists.
+      // Check whether user account already exists.
       const existingUser = await this.prisma.user.findUnique({
         where: { email },
       });
 
       if (existingUser) {
-        throw new ConflictException(
-          'An account with this Google email already exists. Please sign in instead.',
+        return this.createLoginResponse(
+          existingUser.id,
+          existingUser.name,
+          existingUser.email,
         );
       }
 
@@ -131,6 +179,8 @@ export class AuthService {
           password: '',
         },
       });
+
+      await this.seedInitialNotifications(user.id);
 
       return this.createLoginResponse(user.id, user.name, user.email);
     } catch (error) {
@@ -164,22 +214,34 @@ export class AuthService {
         throw new UnauthorizedException('Invalid Google account');
       }
 
-      const email = payload.email;
+      const email = payload.email?.trim().toLowerCase();
 
       if (!email) {
         throw new UnauthorizedException('Google account email is missing');
       }
 
-      // Google account must already be registered
-      // with Apex.
-      const user = await this.prisma.user.findUnique({
+      let user = await this.prisma.user.findUnique({
         where: { email },
       });
 
+      // If user was deleted from database, automatically recreate it for Google sign-in
       if (!user) {
-        throw new UnauthorizedException(
-          'No Apex account exists with this Google account. Please register first.',
-        );
+        const name =
+          (payload.name ??
+            [payload.given_name, payload.family_name]
+              .filter(Boolean)
+              .join(' ')) ||
+          email.split('@')[0];
+
+        user = await this.prisma.user.create({
+          data: {
+            name,
+            email,
+            password: '',
+          },
+        });
+
+        await this.seedInitialNotifications(user.id);
       }
 
       return this.createLoginResponse(user.id, user.name, user.email);
@@ -195,7 +257,7 @@ export class AuthService {
   }
 
   // =========================================================
-  // CREATE APEX JWT
+  // GET GOOGLE PROFILE
   // =========================================================
 
   async getGoogleProfile(data: GoogleLoginDto) {
@@ -218,7 +280,7 @@ export class AuthService {
       return {
         firstName: payload.given_name ?? '',
         lastName: payload.family_name ?? '',
-        email: payload.email,
+        email: payload.email.trim().toLowerCase(),
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
@@ -254,3 +316,4 @@ export class AuthService {
     };
   }
 }
+
