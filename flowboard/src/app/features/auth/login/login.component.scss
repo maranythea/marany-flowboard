@@ -345,9 +345,51 @@ button:disabled {
 }
 
 
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+#google-login-button {
+  display: flex;
+  justify-content: center;
+}
+
 /* =========================================================
-   VALIDATION
+   VALIDATION & ALERTS
    ========================================================= */
+
+.auth-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 12px;
+  color: #f87171;
+  font-size: 13px;
+  line-height: 1.4;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 .error {
   display: block;
@@ -358,6 +400,7 @@ button:disabled {
 
   color: var(--danger);
 }
+
 
 
 /* =========================================================
