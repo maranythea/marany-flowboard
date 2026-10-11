@@ -1,39 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-type NotificationRecord = {
-  id: number;
-  userId: number;
-  isRead: boolean;
-  createdAt: Date;
-  [key: string]: unknown;
-};
-type UpdateManyResult = {
-  count: number;
-};
-
 @Injectable()
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private get prismaClient(): {
-    notification: {
-      findMany: (query: any) => Promise<NotificationRecord[]>;
-      count: (query: any) => Promise<number>;
-      updateMany: (query: any) => Promise<UpdateManyResult>;
-    };
-  } {
-    return this.prisma as unknown as {
-      notification: {
-        findMany: (query: any) => Promise<NotificationRecord[]>;
-        count: (query: any) => Promise<number>;
-        updateMany: (query: any) => Promise<UpdateManyResult>;
-      };
-    };
-  }
-
-  getNotifications(userId: number): Promise<NotificationRecord[]> {
-    return this.prismaClient.notification.findMany({
+  async getNotifications(userId: number): Promise<any[]> {
+    return this.prisma.notification.findMany({
       where: {
         userId,
       },
@@ -44,7 +17,7 @@ export class NotificationsService {
   }
 
   async getUnreadCount(userId: number): Promise<number> {
-    return this.prismaClient.notification.count({
+    return this.prisma.notification.count({
       where: {
         userId,
         isRead: false,
@@ -52,8 +25,24 @@ export class NotificationsService {
     });
   }
 
-  async markAsRead(id: number, userId: number): Promise<UpdateManyResult> {
-    return this.prismaClient.notification.updateMany({
+  async createNotification(
+    userId: number,
+    title: string,
+    message: string,
+    type = 'info',
+  ) {
+    return this.prisma.notification.create({
+      data: {
+        userId,
+        title,
+        message,
+        type,
+      },
+    });
+  }
+
+  async markAsRead(id: number, userId: number) {
+    return this.prisma.notification.updateMany({
       where: {
         id,
         userId,
@@ -64,8 +53,8 @@ export class NotificationsService {
     });
   }
 
-  async markAllAsRead(userId: number): Promise<UpdateManyResult> {
-    return this.prismaClient.notification.updateMany({
+  async markAllAsRead(userId: number) {
+    return this.prisma.notification.updateMany({
       where: {
         userId,
         isRead: false,
