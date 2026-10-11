@@ -38,21 +38,24 @@ export class AuthService {
           {
             userId,
             title: 'Welcome to FlowBoard Life OS',
-            message: 'Your personal workspace is ready. Track tasks, projects, habits, and goals.',
+            message:
+              'Your personal workspace is ready. Track tasks, projects, habits, and goals.',
             type: 'info',
             isRead: false,
           },
           {
             userId,
             title: 'Nova AI Assistant is Online',
-            message: 'Nova AI is calibrated to help organize your schedule and break down complex projects.',
+            message:
+              'Nova AI is calibrated to help organize your schedule and break down complex projects.',
             type: 'ai',
             isRead: false,
           },
           {
             userId,
             title: 'Quick Command Palette (⌘K)',
-            message: 'Press ⌘K or Ctrl+K anytime to quickly search and jump anywhere in your workspace.',
+            message:
+              'Press ⌘K or Ctrl+K anytime to quickly search and jump anywhere in your workspace.',
             type: 'tip',
             isRead: false,
           },
@@ -76,7 +79,9 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email is already registered. Please sign in.');
+      throw new ConflictException(
+        'Email is already registered. Please sign in.',
+      );
     }
 
     const hashedPassword = await bcryptService.hash(data.password, 10);
@@ -147,9 +152,7 @@ export class AuthService {
       const email = payload.email?.trim().toLowerCase();
 
       if (!email) {
-        throw new UnauthorizedException(
-          'Google account email is missing',
-        );
+        throw new UnauthorizedException('Google account email is missing');
       }
 
       // Check whether user account already exists.
@@ -307,7 +310,6 @@ export class AuthService {
 
     return {
       accessToken,
-
       user: {
         id: userId,
         name,
@@ -316,4 +318,3 @@ export class AuthService {
     };
   }
 }
-
