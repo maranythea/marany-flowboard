@@ -4,30 +4,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
-type BcryptHash = {
+const bcryptService = bcrypt as unknown as {
   hash: (value: string, saltOrRounds: number | string) => Promise<string>;
 };
-
-const bcryptHash = (bcrypt as unknown as BcryptHash).hash;
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private get prismaClient(): PrismaService & {
-    user: {
-      findMany: (...args: any[]) => Promise<unknown[]>;
-      findUnique: (...args: any[]) => Promise<Record<string, any> | null>;
-      create: (...args: any[]) => Promise<unknown>;
-      update: (...args: any[]) => Promise<unknown>;
-      delete: (...args: any[]) => Promise<unknown>;
-    };
-  } {
-    return this.prisma;
-  }
-
   getUsers() {
-    return this.prismaClient.user.findMany({
+    return this.prisma.user.findMany({
       select: {
         id: true,
         name: true,
@@ -42,7 +28,7 @@ export class UsersService {
   }
 
   async getUserById(id: number) {
-    const user = await this.prismaClient.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
         id: true,
@@ -61,12 +47,12 @@ export class UsersService {
   }
 
   async createUser(user: CreateUserDto) {
-    const hashedPassword = await bcryptHash(user.password, 10);
+    const hashedPassword = await bcryptService.hash(user.password, 10);
 
-    return this.prismaClient.user.create({
+    return this.prisma.user.create({
       data: {
-        name: user.name,
-        email: user.email,
+        name: user.name.trim(),
+        email: user.email.trim().toLowerCase(),
         password: hashedPassword,
       },
       select: {
@@ -82,12 +68,12 @@ export class UsersService {
   async updateUser(id: number, user: UpdateUserDto) {
     await this.getUserById(id);
 
-    const data = {
-      ...user,
-      ...(user.password
-        ? { password: await bcryptHash(user.password, 10) }
-        : {}),
-    };
+    const data: Record<string, unknown> = {};
+    if (user.name !== undefined) data['name'] = user.name.trim();
+    if (user.email !== undefined) data['email'] = user.email.trim().toLowerCase();
+    if (user.password) {
+      data['password'] = await bcryptService.hash(user.password, 10);
+    }
 
     return this.prisma.user.update({
       where: { id },
@@ -105,7 +91,7 @@ export class UsersService {
   async deleteUser(id: number) {
     await this.getUserById(id);
 
-    return this.prismaClient.user.delete({
+    return this.prisma.user.delete({
       where: { id },
       select: {
         id: true,
@@ -117,3 +103,4 @@ export class UsersService {
     });
   }
 }
+
