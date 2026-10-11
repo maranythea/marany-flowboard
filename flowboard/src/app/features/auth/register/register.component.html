@@ -36,7 +36,15 @@
     <!-- Register Form -->
     <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
 
+      @if (errorMessage()) {
+        <div class="auth-error-banner">
+          <span>⚠️</span>
+          <span>{{ errorMessage() }}</span>
+        </div>
+      }
+
       <!-- First Name -->
+
       <div class="form-group">
 
         <label for="firstName">
@@ -188,9 +196,10 @@
 
 
       <!-- Create Account -->
-      <button type="submit" [disabled]="registerForm.invalid">
-        Create Account
+      <button type="submit" [disabled]="registerForm.invalid || isLoading()">
+        {{ isLoading() ? 'Creating Account...' : 'Create Account' }}
       </button>
+
 
 
       <!-- Divider -->
