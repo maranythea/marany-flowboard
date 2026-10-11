@@ -2,18 +2,18 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
-interface User {
+export interface User {
   id: number;
   name: string;
   email: string;
 }
 
-interface LoginResponse {
+export interface LoginResponse {
   accessToken: string;
   user: User;
 }
 
-interface GoogleProfile {
+export interface GoogleProfile {
   firstName: string;
   lastName: string;
   email: string;
@@ -26,33 +26,55 @@ export class AuthService {
   private readonly apiUrl = 'http://localhost:3000/api/auth';
 
   private readonly authenticated = signal(false);
-
   private readonly currentUser = signal<User | null>(null);
 
   readonly isAuthenticated = this.authenticated.asReadonly();
-
   readonly user = this.currentUser.asReadonly();
 
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {
+    this.restoreSession();
+  }
+
+  private restoreSession(): void {
+    const token = this.getToken();
+    const storedUser = localStorage.getItem('user');
+
+    if (token) {
+      this.authenticated.set(true);
+      if (storedUser) {
+        try {
+          this.currentUser.set(JSON.parse(storedUser));
+        } catch {
+          // If parsing failed, ignore
+        }
+      }
+    }
+  }
+
+  getToken(): string | null {
+    return localStorage.getItem('accessToken');
+  }
+
+  private handleAuthSuccess(response: LoginResponse): void {
+    localStorage.setItem('accessToken', response.accessToken);
+    localStorage.setItem('user', JSON.stringify(response.user));
+    this.authenticated.set(true);
+    this.currentUser.set(response.user);
+  }
 
   // =========================================================
   // EMAIL / PASSWORD LOGIN
   // =========================================================
 
   login(email: string, password: string): Observable<LoginResponse> {
+    const normalizedEmail = email.trim().toLowerCase();
     return this.http
       .post<LoginResponse>(`${this.apiUrl}/login`, {
-        email,
+        email: normalizedEmail,
         password,
       })
       .pipe(
-        tap((response) => {
-          localStorage.setItem('accessToken', response.accessToken);
-
-          this.authenticated.set(true);
-
-          this.currentUser.set(response.user);
-        }),
+        tap((response) => this.handleAuthSuccess(response)),
       );
   }
 
@@ -66,21 +88,16 @@ export class AuthService {
     password: string,
     googleCredential?: string,
   ): Observable<LoginResponse> {
+    const normalizedEmail = email.trim().toLowerCase();
     return this.http
       .post<LoginResponse>(`${this.apiUrl}/register`, {
-        name,
-        email,
+        name: name.trim(),
+        email: normalizedEmail,
         password,
         googleCredential,
       })
       .pipe(
-        tap((response) => {
-          localStorage.setItem('accessToken', response.accessToken);
-
-          this.authenticated.set(true);
-
-          this.currentUser.set(response.user);
-        }),
+        tap((response) => this.handleAuthSuccess(response)),
       );
   }
 
@@ -95,6 +112,20 @@ export class AuthService {
   }
 
   // =========================================================
+  // GOOGLE REGISTER
+  // =========================================================
+
+  googleRegister(credential: string): Observable<LoginResponse> {
+    return this.http
+      .post<LoginResponse>(`${this.apiUrl}/google/register`, {
+        credential,
+      })
+      .pipe(
+        tap((response) => this.handleAuthSuccess(response)),
+      );
+  }
+
+  // =========================================================
   // GOOGLE LOGIN
   // =========================================================
 
@@ -104,13 +135,7 @@ export class AuthService {
         credential,
       })
       .pipe(
-        tap((response) => {
-          localStorage.setItem('accessToken', response.accessToken);
-
-          this.authenticated.set(true);
-
-          this.currentUser.set(response.user);
-        }),
+        tap((response) => this.handleAuthSuccess(response)),
       );
   }
 
@@ -120,9 +145,9 @@ export class AuthService {
 
   logout(): void {
     localStorage.removeItem('accessToken');
-
+    localStorage.removeItem('user');
     this.authenticated.set(false);
-
     this.currentUser.set(null);
   }
 }
+
