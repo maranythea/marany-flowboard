@@ -1,10 +1,11 @@
-import { Component, inject, signal, HostListener } from '@angular/core';
+import { Component, inject, OnInit, HostListener } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
+import { NotificationService, AppNotification } from '../../core/services/notification.service';
 
 interface NavItem {
   label: string;
@@ -39,8 +40,9 @@ interface ChatMessage {
   templateUrl: './main-layout.component.html',
   styleUrl: './main-layout.component.scss'
 })
-export class MainLayoutComponent {
+export class MainLayoutComponent implements OnInit {
   readonly authService = inject(AuthService);
+  readonly notificationService = inject(NotificationService);
   private readonly router = inject(Router);
   private readonly themeService = inject(ThemeService);
 
@@ -50,6 +52,32 @@ export class MainLayoutComponent {
   isSidebarCollapsed = false;
   isProfileMenuOpen = false;
   isNotificationMenuOpen = false;
+
+  ngOnInit(): void {
+    this.cleanupGooglePrompt();
+    this.notificationService.loadNotifications().subscribe();
+  }
+
+  private cleanupGooglePrompt(): void {
+    try {
+      const g = (window as unknown as { google?: { accounts?: { id?: { cancel?: () => void } } } }).google;
+      if (g?.accounts?.id?.cancel) {
+        g.accounts.id.cancel();
+      }
+    } catch {
+      // Ignore
+    }
+    const picker = document.getElementById('credential_picker_container');
+    if (picker) {
+      picker.remove();
+    }
+    const pickerIframe = document.getElementById('credential_picker_iframe');
+    if (pickerIframe) {
+      pickerIframe.remove();
+    }
+    document.querySelectorAll('iframe[src*="accounts.google.com/gsi"]').forEach((el) => el.remove());
+  }
+
 
   // Nova AI Drawer State
   isAIDrawerOpen = false;
@@ -61,6 +89,7 @@ export class MainLayoutComponent {
       time: 'Just now'
     }
   ];
+
 
   // Command Palette State (⌘K)
   isCommandPaletteOpen = false;
@@ -130,6 +159,17 @@ export class MainLayoutComponent {
     return this.authService.user()?.name?.charAt(0).toUpperCase() ?? 'M';
   }
 
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.profile-container')) {
+      this.isProfileMenuOpen = false;
+    }
+    if (!target.closest('.notification-container')) {
+      this.isNotificationMenuOpen = false;
+    }
+  }
+
   @HostListener('window:keydown', ['$event'])
   handleKeyboardShortcuts(event: KeyboardEvent): void {
     // Cmd+K or Ctrl+K
@@ -151,19 +191,45 @@ export class MainLayoutComponent {
     this.isSidebarCollapsed = !this.isSidebarCollapsed;
   }
 
-  toggleProfileMenu(): void {
+  toggleProfileMenu(event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
     this.isProfileMenuOpen = !this.isProfileMenuOpen;
-    if (this.isProfileMenuOpen) this.isNotificationMenuOpen = false;
+    if (this.isProfileMenuOpen) {
+      this.isNotificationMenuOpen = false;
+    }
   }
 
-  toggleNotificationMenu(): void {
+  toggleNotificationMenu(event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
     this.isNotificationMenuOpen = !this.isNotificationMenuOpen;
-    if (this.isNotificationMenuOpen) this.isProfileMenuOpen = false;
+    if (this.isNotificationMenuOpen) {
+      this.isProfileMenuOpen = false;
+      this.notificationService.loadNotifications().subscribe();
+    }
   }
 
-  toggleTheme(): void {
-    this.themeService.toggleTheme();
+
+  markAllNotificationsRead(): void {
+    this.notificationService.markAllAsRead().subscribe();
   }
+
+  markNotificationRead(notification: AppNotification, event?: Event): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    if (!notification.isRead) {
+      this.notificationService.markAsRead(notification.id).subscribe();
+    }
+  }
+
+  formatNotificationTime(dateString: string): string {
+    return this.notificationService.formatTimeAgo(dateString);
+  }
+
 
   toggleAIDrawer(): void {
     this.isAIDrawerOpen = !this.isAIDrawerOpen;
