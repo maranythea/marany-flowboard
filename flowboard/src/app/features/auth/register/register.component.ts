@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, inject } from '@angular/core';
+import { AfterViewInit, Component, inject, OnDestroy, signal } from '@angular/core';
 import {
   FormControl,
   FormGroup,
@@ -29,6 +29,9 @@ declare const google: {
           width?: number;
         },
       ) => void;
+
+      cancel?: () => void;
+      disableAutoSelect?: () => void;
     };
   };
 };
@@ -39,14 +42,17 @@ declare const google: {
   templateUrl: './register.component.html',
   styleUrl: './register.component.scss',
 })
-export class RegisterComponent implements AfterViewInit {
+export class RegisterComponent implements AfterViewInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly themeService = inject(ThemeService);
 
   readonly isDarkMode = this.themeService.isDarkMode;
+  readonly errorMessage = signal<string | null>(null);
+  readonly isLoading = signal<boolean>(false);
 
-  private readonly googleClientId = '583062011127-4uad5tcgiutk2ncq3p9etg3vh8f2jlrf.apps.googleusercontent.com';
+  private readonly googleClientId =
+    '583062011127-4uad5tcgiutk2ncq3p9etg3vh8f2jlrf.apps.googleusercontent.com';
 
   private googleCredential: string | null = null;
 
@@ -79,22 +85,43 @@ export class RegisterComponent implements AfterViewInit {
     this.initializeGoogleSignIn();
   }
 
+  ngOnDestroy(): void {
+    this.cleanupGooglePrompt();
+  }
+
+  private cleanupGooglePrompt(): void {
+    try {
+      if (typeof google !== 'undefined' && google.accounts?.id?.cancel) {
+        google.accounts.id.cancel();
+      }
+    } catch {
+      // Ignore
+    }
+    const picker = document.getElementById('credential_picker_container');
+    if (picker) {
+      picker.remove();
+    }
+    const pickerIframe = document.getElementById('credential_picker_iframe');
+    if (pickerIframe) {
+      pickerIframe.remove();
+    }
+    document.querySelectorAll('iframe[src*="accounts.google.com/gsi"]').forEach((el) => el.remove());
+  }
+
   private initializeGoogleSignIn(): void {
     if (typeof google === 'undefined') {
-      console.error('Google Identity Services has not loaded.');
+      console.warn('Google Identity Services has not loaded.');
       return;
     }
 
     const googleButton = document.getElementById('google-button');
 
     if (!googleButton) {
-      console.error('Google button container was not found.');
       return;
     }
 
     google.accounts.id.initialize({
       client_id: this.googleClientId,
-
       callback: (response) => {
         this.handleGoogleAccount(response.credential);
       },
@@ -112,47 +139,51 @@ export class RegisterComponent implements AfterViewInit {
 
   private handleGoogleAccount(credential: string): void {
     this.googleCredential = credential;
+    this.errorMessage.set(null);
+    this.isLoading.set(true);
 
-    const googleAuthService = this.authService as AuthService & {
-      getGoogleProfile?: (token: string) => {
-        subscribe: (handlers: {
-          next?: (profile: {
-            firstName: string;
-            lastName: string;
-            email: string;
-          }) => void;
-          error?: (error: unknown) => void;
-        }) => void;
-      };
-    };
-
-    const googleProfileRequest = googleAuthService.getGoogleProfile?.(credential);
-
-    if (!googleProfileRequest) {
-      console.warn('Google profile lookup is not supported by the current AuthService.');
-      return;
-    }
-
-    googleProfileRequest.subscribe({
-      next: (profile) => {
-        this.registerForm.patchValue({
-          firstName: profile.firstName,
-          lastName: profile.lastName,
-          email: profile.email,
-        });
-
-        console.log('Google profile loaded:', profile);
+    // 1-Click Google Register / Login
+    this.authService.googleRegister(credential).subscribe({
+      next: () => {
+        this.isLoading.set(false);
+        this.cleanupGooglePrompt();
+        this.router.navigate(['/dashboard']);
       },
+      error: (regError) => {
+        // If account already exists or register threw, fallback to googleLogin
+        this.authService.googleLogin(credential).subscribe({
+          next: () => {
+            this.isLoading.set(false);
+            this.cleanupGooglePrompt();
+            this.router.navigate(['/dashboard']);
+          },
+          error: (loginError) => {
+            this.isLoading.set(false);
+            // Also autofill profile info if available
+            this.authService.getGoogleProfile(credential).subscribe({
+              next: (profile) => {
+                this.registerForm.patchValue({
+                  firstName: profile.firstName,
+                  lastName: profile.lastName,
+                  email: profile.email,
+                });
+              },
+            });
 
-      error: (error) => {
-        console.error('Unable to load Google account:', error);
-
-        this.googleCredential = null;
+            const msg =
+              loginError?.error?.message ||
+              regError?.error?.message ||
+              'Google authentication failed. Please try again or create an account with email.';
+            this.errorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
+          },
+        });
       },
     });
   }
 
   onSubmit(): void {
+    this.errorMessage.set(null);
+
     if (this.registerForm.invalid) {
       this.registerForm.markAllAsTouched();
       return;
@@ -162,21 +193,26 @@ export class RegisterComponent implements AfterViewInit {
       this.registerForm.getRawValue();
 
     if (password !== confirmPassword) {
-      console.error('Passwords do not match');
+      this.errorMessage.set('Passwords do not match.');
       return;
     }
+
+    this.isLoading.set(true);
 
     this.authService
       .register(`${firstName} ${lastName}`, email!, password!)
       .subscribe({
         next: () => {
-          console.log('Registration successful');
-
+          this.isLoading.set(false);
+          this.cleanupGooglePrompt();
           this.router.navigate(['/dashboard']);
         },
-
         error: (error) => {
-          console.error('Registration failed:', error);
+          this.isLoading.set(false);
+          const msg =
+            error?.error?.message ||
+            'Registration failed. Please check your credentials and try again.';
+          this.errorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
         },
       });
   }
@@ -185,3 +221,5 @@ export class RegisterComponent implements AfterViewInit {
     this.router.navigate(['/login']);
   }
 }
+
+
