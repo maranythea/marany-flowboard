@@ -23,7 +23,7 @@ export interface GoogleProfile {
   providedIn: 'root',
 })
 export class AuthService {
-  private readonly apiUrl = 'http://localhost:3000/api/auth';
+  private readonly apiUrl = 'https://marany-flowboard-ccpv.vercel.app';
 
   private readonly authenticated = signal(false);
   private readonly currentUser = signal<User | null>(null);
