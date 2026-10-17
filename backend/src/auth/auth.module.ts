@@ -10,9 +10,11 @@ import { JwtStrategy } from './jwt.strategy';
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET,
+      secret:
+        process.env.JWT_SECRET ||
+        'flowboard-default-jwt-secret-key-2026-production',
       signOptions: {
-        expiresIn: '15m',
+        expiresIn: '7d',
       },
     }),
   ],
