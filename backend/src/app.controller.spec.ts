@@ -15,8 +15,11 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return health status', () => {
+      expect(appController.getHealth()).toEqual({
+        status: 'ok',
+        message: 'Apex API is running',
+      });
     });
   });
 });
