@@ -2,6 +2,8 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
+import { environment } from '../../../environments/environment';
+
 export interface User {
   id: number;
   name: string;
@@ -23,7 +25,7 @@ export interface GoogleProfile {
   providedIn: 'root',
 })
 export class AuthService {
-  private readonly apiUrl = 'https://marany-flowboard-ccpv.vercel.app';
+  private readonly apiUrl = `${environment.apiUrl}/auth`;
 
   private readonly authenticated = signal(false);
   private readonly currentUser = signal<User | null>(null);
