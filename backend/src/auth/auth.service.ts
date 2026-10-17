@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -17,11 +18,20 @@ const bcryptService = bcrypt as unknown as {
   compare: (value: string, encrypted: string) => Promise<boolean>;
 };
 
+const DEFAULT_GOOGLE_CLIENT_ID =
+  '583062011127-4uad5tcgiutk2ncq3p9etg3vh8f2jlrf.apps.googleusercontent.com';
+
 @Injectable()
 export class AuthService {
-  private readonly googleClient = new OAuth2Client(
-    process.env.GOOGLE_CLIENT_ID,
-  );
+  private get googleClientId(): string {
+    return (
+      process.env.GOOGLE_CLIENT_ID?.trim() || DEFAULT_GOOGLE_CLIENT_ID
+    );
+  }
+
+  private get googleClient(): OAuth2Client {
+    return new OAuth2Client(this.googleClientId);
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -137,24 +147,32 @@ export class AuthService {
   // =========================================================
 
   async googleRegister(data: GoogleLoginDto) {
+    let payload;
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken: data.credential,
-        audience: process.env.GOOGLE_CLIENT_ID,
+        audience: this.googleClientId,
       });
 
-      const payload = ticket.getPayload();
+      payload = ticket.getPayload();
+    } catch (googleError: any) {
+      console.error('Google registration token verification failed:', googleError);
+      throw new UnauthorizedException(
+        googleError?.message || 'Google token verification failed',
+      );
+    }
 
-      if (!payload) {
-        throw new UnauthorizedException('Invalid Google account');
-      }
+    if (!payload) {
+      throw new UnauthorizedException('Invalid Google account');
+    }
 
-      const email = payload.email?.trim().toLowerCase();
+    const email = payload.email?.trim().toLowerCase();
 
-      if (!email) {
-        throw new UnauthorizedException('Google account email is missing');
-      }
+    if (!email) {
+      throw new UnauthorizedException('Google account email is missing');
+    }
 
+    try {
       // Check whether user account already exists.
       const existingUser = await this.prisma.user.findUnique({
         where: { email },
@@ -186,17 +204,11 @@ export class AuthService {
       await this.seedInitialNotifications(user.id);
 
       return this.createLoginResponse(user.id, user.name, user.email);
-    } catch (error) {
-      if (
-        error instanceof UnauthorizedException ||
-        error instanceof ConflictException
-      ) {
-        throw error;
-      }
-
-      console.error('Google registration failed:', error);
-
-      throw new UnauthorizedException('Google registration failed');
+    } catch (dbError: any) {
+      console.error('Database operation failed during Google registration:', dbError);
+      throw new InternalServerErrorException(
+        'Database operation failed: ' + (dbError?.message || 'cannot reach database'),
+      );
     }
   }
 
@@ -205,24 +217,32 @@ export class AuthService {
   // =========================================================
 
   async googleLogin(data: GoogleLoginDto) {
+    let payload;
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken: data.credential,
-        audience: process.env.GOOGLE_CLIENT_ID,
+        audience: this.googleClientId,
       });
 
-      const payload = ticket.getPayload();
+      payload = ticket.getPayload();
+    } catch (googleError: any) {
+      console.error('Google login token verification failed:', googleError);
+      throw new UnauthorizedException(
+        googleError?.message || 'Google token verification failed',
+      );
+    }
 
-      if (!payload) {
-        throw new UnauthorizedException('Invalid Google account');
-      }
+    if (!payload) {
+      throw new UnauthorizedException('Invalid Google account');
+    }
 
-      const email = payload.email?.trim().toLowerCase();
+    const email = payload.email?.trim().toLowerCase();
 
-      if (!email) {
-        throw new UnauthorizedException('Google account email is missing');
-      }
+    if (!email) {
+      throw new UnauthorizedException('Google account email is missing');
+    }
 
+    try {
       let user = await this.prisma.user.findUnique({
         where: { email },
       });
@@ -247,15 +267,12 @@ export class AuthService {
         await this.seedInitialNotifications(user.id);
       }
 
-      return this.createLoginResponse(user.id, user.name, user.email);
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-
-      console.error('Google login failed:', error);
-
-      throw new UnauthorizedException('Google login failed');
+      return await this.createLoginResponse(user.id, user.name, user.email);
+    } catch (dbError: any) {
+      console.error('Database operation failed during Google login:', dbError);
+      throw new InternalServerErrorException(
+        'Database operation failed: ' + (dbError?.message || 'cannot reach database'),
+      );
     }
   }
 
@@ -267,7 +284,7 @@ export class AuthService {
     try {
       const ticket = await this.googleClient.verifyIdToken({
         idToken: data.credential,
-        audience: process.env.GOOGLE_CLIENT_ID,
+        audience: this.googleClientId,
       });
 
       const payload = ticket.getPayload();
