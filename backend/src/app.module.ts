@@ -5,6 +5,9 @@ import { ProjectsModule } from './projects/projects.module';
 import { UsersModule } from './users/users.module';
 import { NotificationsModule } from './notifications/notifications.module';
 
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
 @Module({
   imports: [
     PrismaModule,
@@ -13,5 +16,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     UsersModule,
     NotificationsModule,
   ],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
