@@ -2,6 +2,8 @@ import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 
+import { environment } from '../../../environments/environment';
+
 export interface AppNotification {
   id: number;
   userId: number;
@@ -16,7 +18,7 @@ export interface AppNotification {
   providedIn: 'root',
 })
 export class NotificationService {
-  private readonly apiUrl = 'http://localhost:3000/api/notifications';
+  private readonly apiUrl = `${environment.apiUrl}/notifications`;
 
   private readonly _notifications = signal<AppNotification[]>([]);
   private readonly _unreadCount = signal<number>(0);
