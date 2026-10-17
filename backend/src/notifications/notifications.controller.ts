@@ -4,6 +4,7 @@ import {
   Param,
   ParseIntPipe,
   Patch,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 
@@ -20,11 +21,17 @@ export class NotificationsController {
 
   @Get()
   getNotifications(@CurrentUser() user: JwtPayload) {
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
     return this.notificationsService.getNotifications(user.userId);
   }
 
   @Get('unread-count')
   getUnreadCount(@CurrentUser() user: JwtPayload) {
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
     return this.notificationsService.getUnreadCount(user.userId);
   }
 
@@ -33,11 +40,17 @@ export class NotificationsController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: JwtPayload,
   ) {
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
     return this.notificationsService.markAsRead(id, user.userId);
   }
 
   @Patch('read-all')
   markAllAsRead(@CurrentUser() user: JwtPayload) {
+    if (!user || !user.userId) {
+      throw new UnauthorizedException('User not authenticated');
+    }
     return this.notificationsService.markAllAsRead(user.userId);
   }
 }

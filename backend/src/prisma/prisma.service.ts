@@ -1,9 +1,35 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 
+function getDatabaseUrl(): string | undefined {
+  let url = process.env.DATABASE_URL;
+  if (!url) return undefined;
+
+  // Transaction poolers (e.g. Supabase port 6543) require pgbouncer=true to disable prepared statements
+  if (url.includes(':6543') && !url.includes('pgbouncer=')) {
+    url += url.includes('?') ? '&pgbouncer=true' : '?pgbouncer=true';
+  }
+  return url;
+}
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
   private readonly logger = new Logger(PrismaService.name);
+
+  constructor() {
+    const url = getDatabaseUrl();
+    super(
+      url
+        ? {
+            datasources: {
+              db: {
+                url,
+              },
+            },
+          }
+        : undefined,
+    );
+  }
 
   async onModuleInit() {
     try {
